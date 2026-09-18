@@ -37,7 +37,7 @@ export const ClientSection: React.FC<ClientSectionProps> = ({ client, index, tot
                     <button
                         onClick={refresh}
                         disabled={busy}
-                        className="shrink-0 cursor-pointer px-2.5 sm:px-3 py-1.5 border border-black/20 bg-transparent text-black text-[9px] font-medium uppercase tracking-[0.15em] hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                        className="shrink-0 cursor-pointer px-1 py-1 text-black/35 text-[9px] font-medium uppercase tracking-[0.15em] hover:text-[#D4AF37] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed">
                         {feedRefreshing ? "Gerando..." : "Gerar Feed"}
                     </button>
                 </header>
