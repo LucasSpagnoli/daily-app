@@ -1,73 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import Header from "../components/Header";
 import { ClientSection } from "../components/ClientSection";
 import { useClient } from "../api/lib/useClient";
 import { useCarousel } from "../utils/Carousel";
+import { useScreenControl } from "../utils/ScreenControl";
 
 const DOTS_THRESHOLD = 8; // acima disso, some com os dots e mantém só o seletor com busca
-const SWIPE_THRESHOLD = 50; // px mínimos para considerar um swipe
 
 export const FeedPage: React.FC = () => {
   const { clients, loading } = useClient();
   const { currentIndex, goTo, goPrev, goNext, hasPrev, hasNext } = useCarousel(clients.length);
-
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [search, setSearch] = useState("");
   const switcherRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const touchStartX = useRef<number | null>(null);
-
   const currentClient = clients[currentIndex];
+  const { handleTouchStart, handleTouchEnd } = useScreenControl({ switcherRef, setSwitcherOpen, hasPrev, hasNext, goPrev, goNext, });
 
-  // Fecha o dropdown ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
-        setSwitcherOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Foca o input de busca ao abrir e limpa ao fechar
-  useEffect(() => {
+  // Foca o input de busca ao abrir o switcher e limpa ao fechar
+  React.useEffect(() => {
     if (switcherOpen) {
       searchInputRef.current?.focus();
     } else {
       setSearch("");
     }
   }, [switcherOpen]);
-
-  // Navegação por teclado (setas)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isTyping =
-        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-      if (isTyping) return;
-
-      if (e.key === "ArrowLeft" && hasPrev) goPrev();
-      if (e.key === "ArrowRight" && hasNext) goNext();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasPrev, hasNext, goPrev, goNext]);
-
-  // Swipe no mobile
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-
-    if (deltaX > SWIPE_THRESHOLD && hasPrev) goPrev();
-    else if (deltaX < -SWIPE_THRESHOLD && hasNext) goNext();
-
-    touchStartX.current = null;
-  };
 
   const filteredClients = clients
     .map((c, idx) => ({ ...c, _idx: idx }))
@@ -112,9 +69,8 @@ export const FeedPage: React.FC = () => {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2.5"
-                      className={`shrink-0 text-black/30 transition-transform duration-200 ${
-                        switcherOpen ? "rotate-180" : ""
-                      }`}
+                      className={`shrink-0 text-black/30 transition-transform duration-200 ${switcherOpen ? "rotate-180" : ""
+                        }`}
                     >
                       <path d="M6 9l6 6 6-6" />
                     </svg>
@@ -139,9 +95,8 @@ export const FeedPage: React.FC = () => {
                                 goTo(c._idx);
                                 setSwitcherOpen(false);
                               }}
-                              className={`cursor-pointer w-full text-left px-3 py-2 text-sm font-serif hover:bg-[#D4AF37]/10 transition-colors duration-150 ${
-                                c._idx === currentIndex ? "bg-black/5 text-[#D4AF37]" : "text-black"
-                              }`}
+                              className={`cursor-pointer w-full text-left px-3 py-2 text-sm font-serif hover:bg-[#D4AF37]/10 transition-colors duration-150 ${c._idx === currentIndex ? "bg-black/5 text-[#D4AF37]" : "text-black"
+                                }`}
                             >
                               {c.name}
                             </button>
@@ -194,11 +149,10 @@ export const FeedPage: React.FC = () => {
                           key={idx}
                           onClick={() => goTo(idx)}
                           aria-label={`Ir para cliente ${idx + 1}`}
-                          className={`cursor-pointer rounded-full transition-all duration-300 ${
-                            idx === currentIndex
-                              ? "w-4 h-2 bg-[#D4AF37]"
-                              : "w-2 h-2 bg-black/15 hover:bg-black/30"
-                          }`}
+                          className={`cursor-pointer rounded-full transition-all duration-300 ${idx === currentIndex
+                            ? "w-4 h-2 bg-[#D4AF37]"
+                            : "w-2 h-2 bg-black/15 hover:bg-black/30"
+                            }`}
                         />
                       ))}
                     </div>
