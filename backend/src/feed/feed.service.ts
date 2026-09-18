@@ -2,7 +2,7 @@ import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common
 import { News } from "src/types/news";
 import "dotenv/config";
 import { CacheService } from 'src/services/cache.service';
-import { AiService } from 'src/services/ai.services';
+import { AiService } from 'src/services/ai.service';
 import { PreferencesService } from 'src/preferences/preferences.service';
 import { FeedRole } from 'src/types/request-with-user';
 import { FeedResponse } from 'src/types/feed-response';

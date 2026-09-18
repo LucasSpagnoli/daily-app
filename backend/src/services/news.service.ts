@@ -43,8 +43,9 @@ export class NewsService {
     async getParsedNews(): Promise<News[]> {
         try {
             const infomoneyNews = await this.getRssNews(this.infomoneyurl, "InfoMoney");
-            const g1News = await this.getRssNews(this.g1url, "G1");
-            return [...infomoneyNews, ...g1News];
+            // const g1News = await this.getRssNews(this.g1url, "G1");
+            // return [...infomoneyNews, ...g1News];
+            return [...infomoneyNews];
         } catch (error) {
             const err = error as Error;
             this.logger.error(`Erro ao analisar (parse) o XML das notícias: ${err.message}\n`, err.stack);

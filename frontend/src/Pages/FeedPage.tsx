@@ -2,84 +2,106 @@ import React from "react";
 import Header from "../components/Header";
 import { ClientSection } from "../components/ClientSection";
 import { useClient } from "../api/lib/useClient";
-// import { formatToday } from "../utils/formatToday";
+import { useCarousel } from "../utils/Carousel";
 
 export const FeedPage: React.FC = () => {
   const { clients, loading } = useClient();
+  const { currentIndex, goTo, goPrev, goNext, hasPrev, hasNext } = useCarousel(clients.length);
 
   return (
     <div className="min-h-screen w-full bg-white flex flex-col font-sans relative md:pt-10 pt-15">
       <Header />
 
-      <main className="flex-1 pt-7">
-        <div className="max-w-268 w-full mx-auto">
+      <main className="flex-1 pt-7 pb-12">
+        <div className="max-w-2xl w-full mx-auto px-4 sm:px-6 flex flex-col items-center">
 
-          {/* <header className="mb-5">
-            <div className="flex items-end justify-between gap-6 pb-4">
-              <h1 className="text-4xl font-serif font-light text-black tracking-tight leading-none">
-                Feed dos Clientes
-              </h1>
-              <div className="hidden sm:flex flex-col items-end shrink-0 pb-1">
-                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-black/40">
-                  {formatToday()}
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#D4AF37]">
-                  {loading ? "—" : `${clients.length} ${clients.length === 1 ? "cliente" : "clientes"}`}
-                </span>
+          {loading ? (
+            /* ── Skeleton ── */
+            <div className="w-full border border-black/10 p-6 sm:p-8 flex flex-col gap-6 animate-pulse min-h-[520px]">
+              <div className="flex justify-between items-end border-b border-black/5 pb-4">
+                <div className="h-6 w-2/3 bg-black/10 rounded-sm" />
+                <div className="h-4 w-16 bg-black/6 rounded-sm" />
               </div>
+              <div className="flex-1 w-full bg-black/5 rounded-sm" />
             </div>
-            <div className="border-t-[3px] border-black" />
-            <div className="border-t border-[#D4AF37] mt-0.75" />
-          </header> */}
 
-          <div className="relative">
-            <div className="flex overflow-x-auto gap-4 sm:gap-6 px-4 sm:px-6 pb-5 items-stretch snap-x snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-black/10 hover:[&::-webkit-scrollbar-thumb]:bg-[#D4AF37] transition-colors">
+          ) : clients.length > 0 ? (
+            <>
+              {/* ── Card ── */}
+              <div
+                key={clients[currentIndex].client_id}
+                className="w-full opacity-0 animate-[fadeInUp_0.35s_ease-out_forwards]"
+              >
+                <ClientSection
+                  client={clients[currentIndex]}
+                  index={currentIndex}
+                  total={clients.length}
+                />
+              </div>
 
-              {loading ? (
-                Array.from({ length: 3 }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="shrink-0 w-[85vw] xs:w-72 sm:w-80 lg:w-95 snap-center border border-black/10 p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 animate-pulse h-100 sm:h-100"
-                    style={{ animationDelay: `${idx * 100}ms` }}>
-                    <div className="flex justify-between items-end border-b border-black/5 pb-4">
-                      <div className="h-6 w-3/4 bg-black/10" />
-                    </div>
-                    <div className="flex-1 w-full bg-black/5" />
+              {/* ── Navigation + Dots ── */}
+              {clients.length > 1 && (
+                <div className="flex items-center justify-center gap-5 mt-6">
+                  {/* Prev */}
+                  <button
+                    onClick={goPrev}
+                    disabled={!hasPrev}
+                    aria-label="Cliente anterior"
+                    className="cursor-pointer w-8 h-8 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+
+                  {/* Dots */}
+                  <div className="flex items-center gap-2">
+                    {clients.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => goTo(idx)}
+                        aria-label={`Ir para cliente ${idx + 1}`}
+                        className={`cursor-pointer rounded-full transition-all duration-300 ${
+                          idx === currentIndex
+                            ? "w-4 h-2 bg-[#D4AF37]"
+                            : "w-2 h-2 bg-black/15 hover:bg-black/30"
+                        }`}
+                      />
+                    ))}
                   </div>
-                ))
-              ) : clients.length > 0 ? (
-                clients.map((client, idx) => (
-                  <div
-                    key={client.client_id}
-                    className="shrink-0 w-[85vw] -mb-3 xs:w-72 sm:w-80 lg:w-95 snap-center opacity-0 animate-[fadeInUp_0.5s_ease-out_forwards] flex flex-col"
-                    style={{ animationDelay: `${idx * 60}ms` }}>
-                    <ClientSection client={client} index={idx} total={clients.length} />
-                  </div>
-                ))
-              ) : (
-                <div className="w-full border-y border-black/10 py-16 sm:py-24 flex flex-col items-center gap-4">
-                  <div className="w-8 h-px bg-[#D4AF37]" />
-                  <p className="text-sm sm:text-base text-black/50 italic font-serif text-center px-4 max-w-sm">
-                    Nenhum cliente cadastrado ainda. Assim que você adicionar um, o feed de notícias aparece aqui.
-                  </p>
+
+                  {/* Next */}
+                  <button
+                    onClick={goNext}
+                    disabled={!hasNext}
+                    aria-label="Próximo cliente"
+                    className="cursor-pointer w-8 h-8 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
                 </div>
               )}
-            </div>
+            </>
 
-            {clients.length > 0 && (
-              <>
-                <div className="pointer-events-none absolute -left-2 top-0 bottom-5 w-6 sm:w-12 bg-linear-to-r from-white to-transparent" />
-                <div className="pointer-events-none absolute -right-2 top-0 bottom-5 w-6 sm:w-12 bg-linear-to-l from-white to-transparent" />
-              </>
-            )}
-          </div>
+          ) : (
+            /* ── Empty state ── */
+            <div className="w-full border-y border-black/10 py-16 sm:py-24 flex flex-col items-center gap-4">
+              <div className="w-8 h-px bg-[#D4AF37]" />
+              <p className="text-sm sm:text-base text-black/50 italic font-serif text-center px-4 max-w-sm">
+                Nenhum cliente cadastrado ainda. Assim que você adicionar um, o feed de notícias aparece aqui.
+              </p>
+            </div>
+          )}
+
         </div>
       </main>
 
       <style>{`
         @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         @media (prefers-reduced-motion: reduce) {
           * { animation: none !important; opacity: 1 !important; transform: none !important; }
