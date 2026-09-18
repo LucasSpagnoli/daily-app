@@ -30,3 +30,11 @@ export interface ClientNewsProps {
     sentMap?: Record<string, string>;
     onSendSingle?: (item: any) => void
 }
+
+export interface ClientFeedRefreshItem {
+    client_id: number;
+    client_name: string;
+    status: "fulfilled" | "rejected";
+    feed?: FeedResponse;
+    error?: string;
+}

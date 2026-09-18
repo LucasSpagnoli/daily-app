@@ -1,5 +1,5 @@
 import { apiFetch } from "./apiClient";
-import type { FeedResponse, SummaryResponse } from "./types/feed.interfaces";
+import type { ClientFeedRefreshItem, FeedResponse, SummaryResponse } from "./types/feed.interfaces";
 
 export async function getUserFeed(): Promise<FeedResponse> {
     return apiFetch<FeedResponse>("/feed", {
@@ -18,6 +18,12 @@ export async function getClientCacheFeed(client_id: number): Promise<FeedRespons
     return apiFetch<FeedResponse>(`/feed/cache/${client_id}`, {
         method: "GET"
     })
+}
+
+export async function refreshAllClientFeeds(): Promise<ClientFeedRefreshItem[]> {
+    return apiFetch<ClientFeedRefreshItem[]>("/feed/refresh", {
+        method: "GET",
+    });
 }
 
 export async function refreshUserFeed(): Promise<FeedResponse> {

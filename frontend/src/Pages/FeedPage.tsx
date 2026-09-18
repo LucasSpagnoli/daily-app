@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import Header from "../components/Header";
 import { ClientSection } from "../components/ClientSection";
+import { GetAllFeedButton } from "../components/GetAllFeedButton";
 import { useClient } from "../api/lib/useClient";
 import { useCarousel } from "../utils/Carousel";
 import { useScreenControl } from "../utils/ScreenControl";
@@ -12,6 +13,7 @@ export const FeedPage: React.FC = () => {
   const { currentIndex, goTo, goPrev, goNext, hasPrev, hasNext } = useCarousel(clients.length);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const switcherRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const currentClient = clients[currentIndex];
@@ -49,72 +51,82 @@ export const FeedPage: React.FC = () => {
 
           ) : clients.length > 0 ? (
             <>
-              {/* ── Seletor de cliente (com busca) ── */}
-              {clients.length > 1 && (
-                <div ref={switcherRef} className="relative w-full mb-3">
-                  <button
-                    onClick={() => setSwitcherOpen((o) => !o)}
-                    className="cursor-pointer w-full flex items-center justify-between gap-2 px-3 py-2 border border-black/10 bg-black/[0.02] hover:border-[#D4AF37] transition-colors duration-200 text-left"
-                  >
-                    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/40 shrink-0">
-                      {String(currentIndex + 1).padStart(2, "0")}/{String(clients.length).padStart(2, "0")}
-                    </span>
-                    <span className="text-sm font-serif text-black truncate flex-1 text-right">
-                      {currentClient?.name}
-                    </span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className={`shrink-0 text-black/30 transition-transform duration-200 ${switcherOpen ? "rotate-180" : ""
-                        }`}
+              {/* ── Barra Superior de Ações (Seletor & Gerar Feed) ── */}
+              <div className="w-full flex items-center justify-between gap-3 mb-3">
+                {clients.length > 1 ? (
+                  <div ref={switcherRef} className="relative flex-1">
+                    <button
+                      onClick={() => setSwitcherOpen((o) => !o)}
+                      className="cursor-pointer w-full flex items-center justify-between gap-2 px-3 py-2 border border-black/10 bg-black/[0.02] hover:border-[#D4AF37] transition-colors duration-200 text-left"
                     >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </button>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/40 shrink-0">
+                        {String(currentIndex + 1).padStart(2, "0")}/{String(clients.length).padStart(2, "0")}
+                      </span>
+                      <span className="text-sm font-serif text-black truncate flex-1 text-right">
+                        {currentClient?.name}
+                      </span>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        className={`shrink-0 text-black/30 transition-transform duration-200 ${switcherOpen ? "rotate-180" : ""
+                          }`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
 
-                  {switcherOpen && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 border border-black/10 bg-white shadow-lg max-h-72 flex flex-col">
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Buscar cliente..."
-                        className="w-full px-3 py-2 text-sm border-b border-black/10 outline-none font-sans placeholder:text-black/30"
-                      />
-                      <div className="overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/10">
-                        {filteredClients.length > 0 ? (
-                          filteredClients.map((c) => (
-                            <button
-                              key={c.client_id}
-                              onClick={() => {
-                                goTo(c._idx);
-                                setSwitcherOpen(false);
-                              }}
-                              className={`cursor-pointer w-full text-left px-3 py-2 text-sm font-serif hover:bg-[#D4AF37]/10 transition-colors duration-150 ${c._idx === currentIndex ? "bg-black/5 text-[#D4AF37]" : "text-black"
-                                }`}
-                            >
-                              {c.name}
-                            </button>
-                          ))
-                        ) : (
-                          <p className="px-3 py-4 text-xs text-black/40 italic font-serif text-center">
-                            Nenhum cliente encontrado.
-                          </p>
-                        )}
+                    {switcherOpen && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 border border-black/10 bg-white shadow-lg max-h-72 flex flex-col">
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Buscar cliente..."
+                          className="w-full px-3 py-2 text-sm border-b border-black/10 outline-none font-sans placeholder:text-black/30"
+                        />
+                        <div className="overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/10">
+                          {filteredClients.length > 0 ? (
+                            filteredClients.map((c) => (
+                              <button
+                                key={c.client_id}
+                                onClick={() => {
+                                  goTo(c._idx);
+                                  setSwitcherOpen(false);
+                                }}
+                                className={`cursor-pointer w-full text-left px-3 py-2 text-sm font-serif hover:bg-[#D4AF37]/10 transition-colors duration-150 ${c._idx === currentIndex ? "bg-black/5 text-[#D4AF37]" : "text-black"
+                                  }`}
+                              >
+                                {c.name}
+                              </button>
+                            ))
+                          ) : (
+                            <p className="px-3 py-4 text-xs text-black/40 italic font-serif text-center">
+                              Nenhum cliente encontrado.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/40">
+                      Cliente: <span className="font-serif text-sm text-black">{currentClient?.name}</span>
+                    </span>
+                  </div>
+                )}
+
+                <GetAllFeedButton onFeedGenerated={() => setRefreshKey((k) => k + 1)} />
+              </div>
 
               {/* ── Card ── */}
               <div
-                key={clients[currentIndex].client_id}
+                key={`${clients[currentIndex].client_id}-${refreshKey}`}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
                 className="w-full opacity-0 animate-[fadeInUp_0.35s_ease-out_forwards]"
