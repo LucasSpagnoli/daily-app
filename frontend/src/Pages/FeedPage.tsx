@@ -36,7 +36,7 @@ export const FeedPage: React.FC = () => {
     <div className="min-h-screen w-full bg-white flex flex-col font-sans relative md:pt-10 pt-15">
       <Header />
 
-      <main className="flex-1 pt-7 pb-12">
+      <main className="flex-1 pt-6">
         <div className="max-w-2xl w-full mx-auto px-4 sm:px-6 flex flex-col items-center">
 
           {loading ? (
@@ -51,7 +51,7 @@ export const FeedPage: React.FC = () => {
 
           ) : clients.length > 0 ? (
             <>
-              {/* ── Barra Superior de Ações (Seletor & Gerar Feed) ── */}
+              {/* ── Barra Superior de Ações (Seletor & Gerar Feed) ── componentizar */}
               <div className="w-full flex items-center justify-between gap-3 mb-3">
                 {clients.length > 1 ? (
                   <div ref={switcherRef} className="relative flex-1">
@@ -129,8 +129,7 @@ export const FeedPage: React.FC = () => {
                 key={`${clients[currentIndex].client_id}-${refreshKey}`}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
-                className="w-full opacity-0 animate-[fadeInUp_0.35s_ease-out_forwards]"
-              >
+                className="w-full opacity-0 animate-[fadeInUp_0.35s_ease-out_forwards]">
                 <ClientSection
                   client={clients[currentIndex]}
                   index={currentIndex}
@@ -140,15 +139,14 @@ export const FeedPage: React.FC = () => {
 
               {/* ── Navigation + Dots ── */}
               {clients.length > 1 && (
-                <div className="flex items-center justify-center gap-5 mt-6">
+                <div className="flex items-center justify-center gap-5 mt-2">
                   {/* Prev */}
                   <button
                     onClick={goPrev}
                     disabled={!hasPrev}
                     aria-label="Cliente anterior"
-                    className="cursor-pointer w-8 h-8 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    className="cursor-pointer w-5 h-5 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
                   </button>
@@ -162,8 +160,8 @@ export const FeedPage: React.FC = () => {
                           onClick={() => goTo(idx)}
                           aria-label={`Ir para cliente ${idx + 1}`}
                           className={`cursor-pointer rounded-full transition-all duration-300 ${idx === currentIndex
-                            ? "w-4 h-2 bg-[#D4AF37]"
-                            : "w-2 h-2 bg-black/15 hover:bg-black/30"
+                            ? "w-2 h-1 bg-[#D4AF37]"
+                            : "w-1 h-1 bg-black/15 hover:bg-black/30"
                             }`}
                         />
                       ))}
@@ -175,9 +173,8 @@ export const FeedPage: React.FC = () => {
                     onClick={goNext}
                     disabled={!hasNext}
                     aria-label="Próximo cliente"
-                    className="cursor-pointer w-8 h-8 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    className="cursor-pointer w-5 h-5 flex items-center justify-center border border-black/15 text-black/40 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors duration-200 disabled:opacity-20 disabled:cursor-not-allowed">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d="M9 18l6-6-6-6" />
                     </svg>
                   </button>

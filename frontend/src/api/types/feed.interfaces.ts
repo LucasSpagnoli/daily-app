@@ -31,6 +31,13 @@ export interface ClientNewsProps {
     onSendSingle?: (item: any) => void
 }
 
+export interface NewProps {
+    item: News;
+    idx: number;
+    sentAt?: string;
+    onSendSingle?: (item: any) => void;
+}
+
 export interface ClientFeedRefreshItem {
     client_id: number;
     client_name: string;
@@ -38,3 +45,4 @@ export interface ClientFeedRefreshItem {
     feed?: FeedResponse;
     error?: string;
 }
+
