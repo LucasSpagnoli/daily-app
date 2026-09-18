@@ -31,16 +31,20 @@ const Header: React.FC = () => {
                             Admin
                         </NavLink>
                     )}
-                    <Link
-                        to="/clients"
-                        className="text-xs uppercase tracking-[0.15em] text-black/50 hover:text-[#D4AF37] transition-colors duration-200">
-                        Clientes
-                    </Link>
-                    <Link
-                        to="/feed"
-                        className="text-xs uppercase tracking-[0.15em] text-black/50 hover:text-[#D4AF37] transition-colors duration-200">
-                        Feed
-                    </Link>
+                    {user?.role !== 'admin' && (
+                        <>
+                            <Link
+                                to="/clients"
+                                className="text-xs uppercase tracking-[0.15em] text-black/50 hover:text-[#D4AF37] transition-colors duration-200">
+                                Clientes
+                            </Link>
+                            <Link
+                                to="/feed"
+                                className="text-xs uppercase tracking-[0.15em] text-black/50 hover:text-[#D4AF37] transition-colors duration-200">
+                                Feed
+                            </Link>
+                        </>
+                    )}
                     <button
                         onClick={handleLogout}
                         className="cursor-pointer text-xs uppercase tracking-[0.15em] text-black/50 hover:text-red-800 transition-colors duration-200">
