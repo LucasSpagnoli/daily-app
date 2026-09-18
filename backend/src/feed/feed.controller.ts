@@ -17,19 +17,28 @@ export class FeedController {
         private readonly clientsService: ClientsService,
     ) { }
 
-    @Get()
-    async getUserFeed(@Req() req: RequestWithUser) {
-        return await this.feedService.getFeed(req.user.id, 'user');
-    }
-
-    @Get('refresh')
-    async refreshUserFeed(@Req() req: RequestWithUser) {
-        return await this.feedService.refreshFeed(req.user.id, 'user');
-    }
-
     @Get('news')
     async getNews() {
         return this.newsService.getParsedNews();
+    }
+
+    @Get('refresh')
+    async refreshAllClientFeeds(@Req() req: RequestWithUser) {
+        const clients = await this.clientsService.findAll(req.user.id);
+        const results = await Promise.allSettled(
+            clients.map(c => this.feedService.refreshFeed(c.id, 'client'))
+        );
+        return clients.map((client, i) => {
+            const result = results[i];
+            return {
+                client_id: client.id,
+                client_name: client.name,
+                status: result.status,
+                ...(result.status === 'fulfilled'
+                    ? { feed: result.value }
+                    : { error: (result.reason as Error)?.message ?? 'Erro desconhecido' }),
+            };
+        });
     }
 
     @Get('refresh/:client_id')
@@ -48,6 +57,25 @@ export class FeedController {
     @Get('/cache/:client_id')
     async getClientCacheFeed(@Req() req: RequestWithUser, @Param('client_id', ParseIntPipe) client_id: number) {
         return await this.feedService.getClientCacheFeed(client_id);
+    }
+
+    @Get()
+    async getAllClientFeeds(@Req() req: RequestWithUser) {
+        const clients = await this.clientsService.findAll(req.user.id);
+        const results = await Promise.allSettled(
+            clients.map(c => this.feedService.getFeed(c.id, 'client'))
+        );
+        return clients.map((client, i) => {
+            const result = results[i];
+            return {
+                client_id: client.id,
+                client_name: client.name,
+                status: result.status,
+                ...(result.status === 'fulfilled'
+                    ? { feed: result.value }
+                    : { error: (result.reason as Error)?.message ?? 'Erro desconhecido' }),
+            };
+        });
     }
 
     @Get(':client_id')
