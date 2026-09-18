@@ -33,6 +33,16 @@ export const RequireAdmin: React.FC = () => {
     return <Outlet />;
 };
 
+export const RequireNonAdmin: React.FC = () => {
+    const { user } = useAuth();
+
+    if (user?.role === 'admin') {
+        return <Navigate to="/admin" replace />;
+    }
+
+    return <Outlet />;
+};
+
 // export const RequirePreferences: React.FC = () => {
 // const { user } = useAuth();
 // const [checking, setChecking] = useState(true);
