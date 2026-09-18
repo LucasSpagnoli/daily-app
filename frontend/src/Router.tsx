@@ -6,12 +6,14 @@ import ClientPage from './Pages/ClientPage'
 import { AuthProvider } from './api/lib/AuthContext'
 import { FeedPage } from './Pages/FeedPage'
 import AdminPage from './Pages/AdminPage'
+import { ToastProvider } from './components/Toast'
 
 function App() {
 
   return (
     <BrowserRouter>
-      <AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
         <Routes>
           <Route element={<RedirectIfAuth />}>
             <Route path='/' element={<LoginPage />} />
@@ -30,6 +32,7 @@ function App() {
           </Route>
         </Routes>
       </AuthProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }
