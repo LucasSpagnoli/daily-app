@@ -7,6 +7,7 @@ import { AuthProvider } from './api/lib/AuthContext'
 import { FeedPage } from './Pages/FeedPage'
 import AdminPage from './Pages/AdminPage'
 import { ToastProvider } from './components/Toast'
+import ConfirmPayment from './Pages/ConfirmPayment'
 
 function App() {
 
@@ -14,25 +15,28 @@ function App() {
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-        <Routes>
-          <Route element={<RedirectIfAuth />}>
-            <Route path='/' element={<LoginPage />} />
-          </Route>
-
-          <Route element={<RequireAuth />}>
-            {/* <Route path='/preferences' element={<PreferencesPage />} /> */}
-
-            <Route element={<RequireAdmin />}>
-              <Route path='/admin' element={<AdminPage />} />
+          <Routes>
+            <Route element={<RedirectIfAuth />}>
+              <Route path='/' element={<LoginPage />} />
             </Route>
 
-            <Route element={<RequireNonAdmin />}>
-              <Route path='/feed' element={<FeedPage />} />
-              <Route path='/clients' element={<ClientPage />} />
+            <Route element={<RequireAuth />}>
+              {/* <Route path='/preferences' element={<PreferencesPage />} /> */}
+
+              <Route element={<RequireAdmin />}>
+                <Route path='/admin' element={<AdminPage />} />
+              </Route>
+
+              <Route element={<RequireNonAdmin />}>
+                <Route path='/feed' element={<FeedPage />} />
+                <Route path='/clients' element={<ClientPage />} />
+              </Route>
+
+              <Route path='/pagamento-confirmado' element={<ConfirmPayment />} />
+
             </Route>
-          </Route>
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
   )
