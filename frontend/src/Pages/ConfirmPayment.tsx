@@ -33,7 +33,7 @@ export default function ConfirmPayment() {
           </div>
 
           <a
-            href="mailto:"
+            href="https://mail.google.com/mail/u/0/#inbox"
             className="mt-8 inline-block w-full text-center bg-black text-white text-xs uppercase tracking-[0.2em] py-3.5 hover:bg-[#D4AF37] hover:text-black transition-colors duration-300">
             Abrir meu e-mail
           </a>
