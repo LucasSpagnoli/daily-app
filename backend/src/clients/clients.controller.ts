@@ -2,11 +2,12 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Pars
 import { ClientsService } from './clients.service';
 import { JwtAuthGuard } from 'src/auth/Guards/jwt.guard';
 import { RolesGuard } from 'src/auth/Guards/roles.guard';
+import { SubscriptionGuard } from 'src/auth/Guards/subscription.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import type { RequestWithUser } from 'src/types/request-with-user';
 import { CreateClientDTO, UpdateClientDTO } from 'src/types/clients.dto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, SubscriptionGuard)
 @Roles('admin', 'user')
 @Controller('clients')
 export class ClientsController {

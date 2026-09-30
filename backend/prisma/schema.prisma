@@ -7,15 +7,48 @@ datasource db {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  name        String
-  email       String    @unique
-  password    String
-  role        String    @default("user")
-  preferences String[]
-  clients     Clients[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String        @unique
+  password     String?       // nullable: criado pelo webhook antes do assessor definir senha
+  role         String        @default("pending") // pending | user | admin
+  preferences  String[]
+  clients      Clients[]
+  subscription Subscription?
+  setupTokens  PasswordSetupToken[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Subscription {
+  id                          Int      @id @default(autoincrement())
+  userId                      Int      @unique
+  user                        User     @relation(fields: [userId], references: [id])
+  abacatepaySubscriptionId    String?  // ID da assinatura na AbacatePay
+  abacatepayCustomerId        String?  // ID do customer na AbacatePay
+  status                      String   @default("ACTIVE") // ACTIVE | PAST_DUE | CANCELLED | EXPIRED
+  currentPeriodEnd            DateTime?
+  plan                        String   @default("monthly")
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
+model PasswordSetupToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model ProcessedWebhookEvent {
+  id          Int      @id @default(autoincrement())
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  receivedAt  DateTime @default(now())
 }
 
 model User_cache {

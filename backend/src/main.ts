@@ -13,6 +13,19 @@ const allowedOrigins = [
   'https://daily-news-challenge.vercel.app'
 ];
 
+// Captura o rawBody antes do JSON parser — necessário para validação HMAC do webhook AbacatePay
+expressApp.use((req, res, next) => {
+  let data = '';
+  req.setEncoding('utf8');
+  req.on('data', (chunk: string) => { data += chunk; });
+  req.on('end', () => {
+    (req as any).rawBody = data;
+    next();
+  });
+});
+
+expressApp.use(express.json());
+
 expressApp.use(
   cors({
     origin: (origin, callback) => {
@@ -24,6 +37,7 @@ expressApp.use(
     },
   }),
 );
+
 
 let cachedApp: express.Express | undefined;
 

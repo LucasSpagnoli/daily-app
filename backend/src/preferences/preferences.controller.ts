@@ -2,10 +2,11 @@ import { Body, Controller, Get, ParseIntPipe, Patch, Req, UseGuards, Param, Vali
 import { PreferencesService } from './preferences.service';
 import { ClientsService } from 'src/clients/clients.service';
 import { JwtAuthGuard } from 'src/auth/Guards/jwt.guard';
+import { SubscriptionGuard } from 'src/auth/Guards/subscription.guard';
 import type { RequestWithUser } from 'src/types/request-with-user';
 import { UpdatePreferencesDto } from 'src/types/preferences.dto';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('preferences')
 export class PreferencesController {
     constructor(

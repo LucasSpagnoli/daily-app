@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from './Guards/jwt.guard';
 import { AuthRole } from 'src/types/role';
 import { CreateAdminDTO } from 'src/types/create-admin.dto';
+import { SetPasswordDTO } from 'src/types/set-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -38,9 +39,27 @@ export class AuthController {
         return req.user;
     }
 
-    // @Post('register')
-    // async register(@Body(ValidationPipe) createUserDTO: CreateUserDTO) {
-    //     const newUser = await this.authService.register(createUserDTO);
-    //     return newUser;
-    // }
+    /**
+     * POST /auth/set-password
+     * Rota pública — usada no primeiro acesso após pagamento
+     * e no fluxo de "esqueci minha senha".
+     */
+    @Post('set-password')
+    @HttpCode(200)
+    async setPassword(@Body(ValidationPipe) dto: SetPasswordDTO) {
+        await this.authService.setPassword(dto.token, dto.password);
+        return { message: 'Senha definida com sucesso. Você já pode fazer login.' };
+    }
+
+    /**
+     * POST /auth/resend-setup-link
+     * Reenvio do e-mail de configuração de senha.
+     * Retorna 200 mesmo se o e-mail não existir (evita enumeração).
+     */
+    @Post('resend-setup-link')
+    @HttpCode(200)
+    async resendSetupLink(@Body('email') email: string) {
+        await this.authService.resendSetupLink(email);
+        return { message: 'Se o e-mail estiver cadastrado, você receberá um novo link em instantes.' };
+    }
 }

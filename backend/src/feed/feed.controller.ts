@@ -1,13 +1,14 @@
 import { Controller, Get, Param, ParseIntPipe, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/Guards/jwt.guard';
 import { RolesGuard } from 'src/auth/Guards/roles.guard';
+import { SubscriptionGuard } from 'src/auth/Guards/subscription.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { FeedService } from './feed.service';
 import { ClientsService } from 'src/clients/clients.service';
 import type { RequestWithUser } from 'src/types/request-with-user';
 import { NewsService } from 'src/services/news.service';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, SubscriptionGuard)
 @Roles('user')
 @Controller('feed')
 export class FeedController {
