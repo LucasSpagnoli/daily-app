@@ -8,9 +8,9 @@ import * as bcrypt from 'bcrypt';
 import { DatabaseService } from 'src/database/database.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
 // Tipos do payload AbacatePay (ajuste os nomes de evento conforme sua conta)
-// ──────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
 interface AbacatepayWebhookPayload {
   event: string;          // ex: 'subscription.completed', 'subscription.renewed', ...
   devMode?: boolean;
@@ -51,9 +51,9 @@ export class BillingService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
   // Entry point chamado pelo controller
-  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
 
   async handleWebhookEvent(
     body: AbacatepayWebhookPayload,
@@ -120,9 +120,9 @@ export class BillingService {
     });
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
   // Handlers por evento
-  // ────────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
 
   /** Primeira cobrança paga → criar/ativar usuário + enviar e-mail de boas-vindas */
   private async handleFirstPayment(payload: AbacatepayWebhookPayload): Promise<void> {
@@ -163,11 +163,13 @@ export class BillingService {
         },
       });
 
-      // Garante role ativo
-      await this.db.user.update({
-        where: { id: existingUser.id },
-        data: { role: 'user' },
-      });
+      // Garante role ativo (preserva admin)
+      if (existingUser.role !== 'admin') {
+        await this.db.user.update({
+          where: { id: existingUser.id },
+          data: { role: 'user' },
+        });
+      }
 
       await this.notifications.sendReactivationEmail(existingUser.email, existingUser.name);
       this.logger.log(`Assinatura reativada para: ${email}`);
@@ -213,12 +215,22 @@ export class BillingService {
       ? new Date(payload.data.subscription.currentPeriodEnd)
       : null;
 
+    const orConditions: Array<{ abacatepaySubscriptionId?: string; abacatepayCustomerId?: string }> = [];
+    if (subscriptionId) {
+      orConditions.push({ abacatepaySubscriptionId: subscriptionId });
+    }
+    if (customerId) {
+      orConditions.push({ abacatepayCustomerId: customerId });
+    }
+
+    if (orConditions.length === 0) {
+      this.logger.warn('Renovação: nenhum identificador de assinatura fornecido.');
+      return;
+    }
+
     const subscription = await this.db.subscription.findFirst({
       where: {
-        OR: [
-          { abacatepaySubscriptionId: subscriptionId },
-          { abacatepayCustomerId: customerId ?? '' },
-        ],
+        OR: orConditions,
       },
     });
 
@@ -288,11 +300,14 @@ export class BillingService {
       },
     });
 
-    // Rebaixar role para 'pending' para bloquear acesso via SubscriptionGuard
-    await this.db.user.update({
-      where: { id: subscription.userId },
-      data: { role: 'pending' },
-    });
+    // Rebaixar role para 'pending' para bloquear acesso via SubscriptionGuard (se não for admin)
+    const user = await this.db.user.findUnique({ where: { id: subscription.userId } });
+    if (user && user.role !== 'admin') {
+      await this.db.user.update({
+        where: { id: subscription.userId },
+        data: { role: 'pending' },
+      });
+    }
 
     this.logger.log(`Assinatura ${isCancelled ? 'cancelada' : 'expirada'}: ${subscriptionId}`);
   }
@@ -387,11 +402,14 @@ export class BillingService {
       data: { status, updatedAt: new Date() },
     });
 
-    // Se suspenso ou cancelado, atualiza role para pending; se ativo, para user
-    await this.db.user.update({
-      where: { id: userId },
-      data: { role: status === 'ACTIVE' ? 'user' : 'pending' },
-    });
+    // Se suspenso ou cancelado, atualiza role para pending; se ativo, para user (preservando admin)
+    const user = await this.db.user.findUnique({ where: { id: userId } });
+    if (user && user.role !== 'admin') {
+      await this.db.user.update({
+        where: { id: userId },
+        data: { role: status === 'ACTIVE' ? 'user' : 'pending' },
+      });
+    }
 
     return updated;
   }

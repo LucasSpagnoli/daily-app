@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../api/lib/AuthContext";
 
 const LoginPage: React.FC = () => {
-    const [isRegister, setIsRegister] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -16,11 +15,7 @@ const LoginPage: React.FC = () => {
         e.preventDefault();
 
         try {
-            if (isRegister) {
-                await register({ name, email, password });
-            } else {
-                await login({ email, password });
-            }
+            await login({ email, password });
         } catch {
             // erro já fica em `error` via context, exibido no formulário
             return;
@@ -71,33 +66,14 @@ const LoginPage: React.FC = () => {
 
                     <div className="mb-10">
                         <h2 className="lg:text-3xl text-xl font-light text-black tracking-tight">
-                            {isRegister ? "Criar conta" : "Acesso à conta"}
+                            Acesso à conta
                         </h2>
                         <p className="mt-2 lg:text-sm text-xs text-black/50 font-sans">
-                            {isRegister
-                                ? "Preencha seus dados para se cadastrar."
-                                : "Insira suas credenciais para continuar."}
+                            Insira suas credenciais para continuar
                         </p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6 font-sans">
-                        {isRegister && (
-                            <div>
-                                <label
-                                    htmlFor="name"
-                                    className="block text-xs uppercase tracking-[0.15em] text-black/60 mb-2">
-                                    Nome
-                                </label>
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Seu nome completo"
-                                    className="w-full border-0 border-b border-black/20 bg-transparent py-2.5 text-black placeholder:text-black/30 focus:outline-none focus:border-[#D4AF37] transition-colors duration-200" />
-                            </div>
-                        )}
-
                         <div>
                             <label
                                 htmlFor="email"
@@ -169,20 +145,10 @@ const LoginPage: React.FC = () => {
                             disabled={loading}
                             className="cursor-pointer w-full bg-black text-white py-3.5 mt-4 text-sm uppercase tracking-[0.2em] hover:bg-[#D4AF37] hover:text-black transition-colors duration-300">
                             {loading
-                                ? isRegister ? "Cadastrando..." : "Entrando..."
-                                : isRegister ? "Cadastrar" : "Entrar"}
+                                ? "Entrando..."
+                                : "Entrar"}
                         </button>
                     </form>
-
-                    <p className="mt-6 text-center text-sm text-black/50 font-sans">
-                        {isRegister ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
-                        <button
-                            type="button"
-                            onClick={() => setIsRegister((v) => !v)}
-                            className="text-black hover:text-[#D4AF37] transition-colors duration-200 uppercase tracking-widest text-xs font-medium cursor-pointer">
-                            {isRegister ? "Entrar" : "Cadastre-se"}
-                        </button>
-                    </p>
                 </div>
             </div>
         </div>

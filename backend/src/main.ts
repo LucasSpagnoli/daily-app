@@ -13,18 +13,14 @@ const allowedOrigins = [
   'https://daily-news-challenge.vercel.app'
 ];
 
-// Captura o rawBody antes do JSON parser — necessário para validação HMAC do webhook AbacatePay
-expressApp.use((req, res, next) => {
-  let data = '';
-  req.setEncoding('utf8');
-  req.on('data', (chunk: string) => { data += chunk; });
-  req.on('end', () => {
-    (req as any).rawBody = data;
-    next();
-  });
-});
-
-expressApp.use(express.json());
+// Captura o rawBody durante o parsing de JSON — necessário para validação HMAC do webhook AbacatePay
+expressApp.use(
+  express.json({
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString('utf8');
+    },
+  }),
+);
 
 expressApp.use(
   cors({

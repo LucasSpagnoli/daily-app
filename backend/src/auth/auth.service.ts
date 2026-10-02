@@ -157,12 +157,17 @@ export class AuthService {
             throw new BadRequestException('Este link expirou. Solicite um novo na tela de login.');
         }
 
+        const user = await this.databaseService.user.findUnique({
+            where: { id: setupToken.userId },
+        });
+
+        const targetRole: AuthRole = user?.role === 'admin' ? 'admin' : 'user';
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
         await this.databaseService.$transaction([
             this.databaseService.user.update({
                 where: { id: setupToken.userId },
-                data: { password: hashedPassword, role: 'user' },
+                data: { password: hashedPassword, role: targetRole },
             }),
             this.databaseService.passwordSetupToken.update({
                 where: { id: setupToken.id },
@@ -200,7 +205,12 @@ export class AuthService {
             data: { userId: user.id, token, expiresAt },
         });
 
-        await this.notifications.sendPasswordResetEmail(user.email, user.name, token);
+        // Se o usuário ainda não definiu senha (primeiro acesso), envia boas-vindas; senão, redefinição
+        if (!user.password) {
+            await this.notifications.sendWelcomeEmail(user.email, user.name, token);
+        } else {
+            await this.notifications.sendPasswordResetEmail(user.email, user.name, token);
+        }
         this.logger.log(`Novo link de configuração enviado para: ${email}`);
     }
 }

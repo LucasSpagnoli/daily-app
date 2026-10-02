@@ -4,14 +4,32 @@ import { Resend } from 'resend';
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly resend: Resend;
+  private readonly resend: Resend | null = null;
   private readonly fromEmail: string;
   private readonly frontendUrl: string;
 
   constructor() {
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    const apiKey = process.env.RESEND_API_KEY;
+    if (apiKey) {
+      this.resend = new Resend(apiKey);
+    } else {
+      this.logger.warn('RESEND_API_KEY não configurada. E-mails serão simulados em log.');
+    }
     this.fromEmail = process.env.RESEND_FROM_EMAIL ?? 'noreply@dailynews.com.br';
     this.frontendUrl = process.env.FRONTEND_URL ?? 'https://daily-news-challenge.vercel.app';
+  }
+
+  private isResendConfigured(): boolean {
+    return !!(this.resend && process.env.RESEND_API_KEY);
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /**
@@ -21,13 +39,13 @@ export class NotificationsService {
   async sendWelcomeEmail(email: string, name: string, setupToken: string): Promise<void> {
     const setupUrl = `${this.frontendUrl}/definir-senha?token=${setupToken}`;
 
-    if (!process.env.RESEND_API_KEY) {
+    if (!this.isResendConfigured()) {
       this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de boas-vindas para: ${email}. Link: ${setupUrl}`);
       return;
     }
 
     try {
-      await this.resend.emails.send({
+      await this.resend!.emails.send({
         from: `Daily.News <${this.fromEmail}>`,
         to: email,
         subject: 'Bem-vindo à Daily.News — Defina sua senha',
@@ -45,13 +63,13 @@ export class NotificationsService {
    * O usuário já tem senha, portanto não inclui link de definição de senha.
    */
   async sendReactivationEmail(email: string, name: string): Promise<void> {
-    if (!process.env.RESEND_API_KEY) {
+    if (!this.isResendConfigured()) {
       this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de reativação para: ${email}`);
       return;
     }
 
     try {
-      await this.resend.emails.send({
+      await this.resend!.emails.send({
         from: `Daily.News <${this.fromEmail}>`,
         to: email,
         subject: 'Sua assinatura Daily.News foi reativada',
@@ -67,13 +85,13 @@ export class NotificationsService {
    * E-mail de falha de pagamento — avisa o assessor antes de perder acesso.
    */
   async sendPaymentFailedEmail(email: string, name: string): Promise<void> {
-    if (!process.env.RESEND_API_KEY) {
+    if (!this.isResendConfigured()) {
       this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de falha de pagamento para: ${email}`);
       return;
     }
 
     try {
-      await this.resend.emails.send({
+      await this.resend!.emails.send({
         from: `Daily.News <${this.fromEmail}>`,
         to: email,
         subject: 'Daily.News — Falha no pagamento da sua assinatura',
@@ -91,13 +109,13 @@ export class NotificationsService {
   async sendPasswordResetEmail(email: string, name: string, setupToken: string): Promise<void> {
     const resetUrl = `${this.frontendUrl}/definir-senha?token=${setupToken}`;
 
-    if (!process.env.RESEND_API_KEY) {
+    if (!this.isResendConfigured()) {
       this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de redefinição para: ${email}. Link: ${resetUrl}`);
       return;
     }
 
     try {
-      await this.resend.emails.send({
+      await this.resend!.emails.send({
         from: `Daily.News <${this.fromEmail}>`,
         to: email,
         subject: 'Daily.News — Redefina sua senha',
@@ -109,9 +127,9 @@ export class NotificationsService {
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
   // Templates HTML — paleta Daily.News (preto/dourado, tipografia serifada)
-  // ──────────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
 
   private baseLayout(content: string): string {
     return `
@@ -159,10 +177,11 @@ export class NotificationsService {
   }
 
   private buildWelcomeHtml(name: string, setupUrl: string): string {
+    const safeName = this.escapeHtml(name);
     return this.baseLayout(`
       <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Registro confirmado</p>
       <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
-        Bem-vindo, ${name}.
+        Bem-vindo, ${safeName}.
       </h1>
       <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
         Sua assinatura Daily.News foi ativada com sucesso. Para acessar a plataforma, você precisa definir sua senha clicando no botão abaixo.
@@ -181,11 +200,12 @@ export class NotificationsService {
   }
 
   private buildReactivationHtml(name: string): string {
+    const safeName = this.escapeHtml(name);
     const loginUrl = `${this.frontendUrl}/`;
     return this.baseLayout(`
       <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Assinatura reativada</p>
       <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
-        Que bom ter você de volta, ${name}.
+        Que bom ter você de volta, ${safeName}.
       </h1>
       <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
         Sua assinatura Daily.News foi reativada com sucesso. Você já pode acessar a plataforma normalmente com suas credenciais anteriores.
@@ -197,10 +217,11 @@ export class NotificationsService {
   }
 
   private buildPaymentFailedHtml(name: string): string {
+    const safeName = this.escapeHtml(name);
     return this.baseLayout(`
       <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Atenção</p>
       <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
-        Problema no pagamento, ${name}.
+        Problema no pagamento, ${safeName}.
       </h1>
       <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
         Identificamos uma falha na cobrança da sua assinatura Daily.News. Estamos tentando processar o pagamento novamente de forma automática.
@@ -212,10 +233,11 @@ export class NotificationsService {
   }
 
   private buildPasswordResetHtml(name: string, resetUrl: string): string {
+    const safeName = this.escapeHtml(name);
     return this.baseLayout(`
       <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Redefinição de senha</p>
       <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
-        Redefina sua senha, ${name}.
+        Redefina sua senha, ${safeName}.
       </h1>
       <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
         Você solicitou a redefinição da sua senha. Clique no botão abaixo para criar uma nova senha. Este link expira em 48 horas.

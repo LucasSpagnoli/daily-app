@@ -8,7 +8,6 @@ import {
   Req,
   Res,
   Headers,
-  HttpCode,
   Logger,
   UseGuards,
   ParseIntPipe,
@@ -34,24 +33,36 @@ export class BillingController {
    * Responde sempre 200 para evitar reenvios desnecessários;
    * erros reais são tratados internamente.
    */
+  
   @Post('webhook/abacatepay')
-  @HttpCode(200)
   async handleWebhook(
     @Req() req: Request,
     @Res() res: Response,
     @Headers('x-webhook-secret') webhookSecret?: string,
     @Headers('x-webhook-signature') signature?: string,
   ) {
-    // O body raw (string) é necessário para validação HMAC — configurado no main.ts
-    const rawBody: string = (req as any).rawBody ?? JSON.stringify(req.body);
+    // O body raw (string) é necessário para validação HMAC confiável
+    let rawBody: string = (req as any).rawBody;
+    if (!rawBody) {
+      this.logger.warn(
+        'req.rawBody não foi capturado no middleware; usando fallback JSON.stringify (não recomendado para HMAC).',
+      );
+      rawBody = JSON.stringify(req.body);
+    }
+
+    // AbacatePay envia o secret primariamente via query param (?webhookSecret=...)
     const resolvedSecret =
-      webhookSecret ||
       (req.query?.webhookSecret as string) ||
+      webhookSecret ||
       (req.headers['x-secret'] as string);
+
+    // Tentativas de resolução da assinatura HMAC por diferentes cabeçalhos/query
     const resolvedSignature =
       signature ||
+      (req.query?.signature as string) ||
       (req.headers['x-signature'] as string) ||
-      (req.headers['abacatepay-signature'] as string);
+      (req.headers['abacatepay-signature'] as string) ||
+      (req.headers['x-abacatepay-signature'] as string);
 
     try {
       await this.billingService.handleWebhookEvent(
