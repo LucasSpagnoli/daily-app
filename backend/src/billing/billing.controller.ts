@@ -11,6 +11,8 @@ import {
   Logger,
   UseGuards,
   ParseIntPipe,
+  ValidationPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { BillingService } from './billing.service';
@@ -18,6 +20,7 @@ import { JwtAuthGuard } from 'src/auth/Guards/jwt.guard';
 import { RolesGuard } from 'src/auth/Guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import type { RequestWithUser } from 'src/types/request-with-user';
+import { CancelSubscriptionDTO } from 'src/types/cancel-subscription.dto';
 
 @Controller('billing')
 export class BillingController {
@@ -114,5 +117,36 @@ export class BillingController {
     @Body('status') status: 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED',
   ) {
     return this.billingService.updateSubscriptionStatus(userId, status);
+  }
+
+  /**
+   * POST /billing/cancel
+   * Permite que o assessor cancele sua própria assinatura dentro do site.
+   * Permite escolher entre:
+   * - deleteDataImmediately = true: exclui dados de clientes/preferências na hora.
+   * - deleteDataImmediately = false: mantém os dados preservados por 60 dias.
+   */
+  @Post('cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelSubscription(
+    @Req() req: RequestWithUser,
+    @Body(ValidationPipe) dto: CancelSubscriptionDTO,
+  ) {
+    return this.billingService.cancelSubscription(req.user.id, dto.deleteDataImmediately);
+  }
+
+  /**
+   * POST /billing/cron/cleanup-data
+   * Endpoint de manutenção (executado via cron job, ex: Vercel Cron):
+   * 1. Envia e-mail de aviso 7 dias antes do término do prazo de 60 dias.
+   * 2. Exclui definitivamente dados de contas com mais de 60 dias de cancelamento.
+   */
+  @Post('cron/cleanup-data')
+  async runDataCleanupCron(@Headers('x-cron-secret') cronSecret?: string) {
+    const expectedSecret = process.env.CRON_SECRET;
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      throw new UnauthorizedException('Token de cron inválido.');
+    }
+    return this.billingService.checkAndProcessExpiredDataRetention();
   }
 }

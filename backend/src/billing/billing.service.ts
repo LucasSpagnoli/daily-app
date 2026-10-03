@@ -2,9 +2,12 @@ import {
   Injectable,
   Logger,
   ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+import axios from 'axios';
 import { DatabaseService } from 'src/database/database.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 
@@ -144,13 +147,16 @@ export class BillingService {
     const existingUser = await this.db.user.findUnique({ where: { email } });
 
     if (existingUser) {
-      // Reativação — apenas atualiza assinatura, não recria senha
+      // Reativação — apenas atualiza assinatura, não recria senha, reseta retenção
       await this.db.subscription.upsert({
         where: { userId: existingUser.id },
         update: {
           status: 'ACTIVE',
           abacatepaySubscriptionId: subscriptionId,
           abacatepayCustomerId: customerId,
+          dataRetentionChoice: null,
+          scheduledDataDeletionAt: null,
+          deletionWarningSentAt: null,
           ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
           updatedAt: new Date(),
         },
@@ -159,6 +165,9 @@ export class BillingService {
           status: 'ACTIVE',
           abacatepaySubscriptionId: subscriptionId,
           abacatepayCustomerId: customerId,
+          dataRetentionChoice: null,
+          scheduledDataDeletionAt: null,
+          deletionWarningSentAt: null,
           ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
         },
       });
@@ -278,7 +287,7 @@ export class BillingService {
     this.logger.log(`Assinatura marcada como PAST_DUE: ${subscriptionId}`);
   }
 
-  /** Cancelamento ou expiração → suspender acesso sem deletar dados */
+  /** Cancelamento ou expiração via webhook → suspender acesso com retenção padrão de 60 dias */
   private async handleCancellation(payload: AbacatepayWebhookPayload): Promise<void> {
     const subscriptionId = payload.data.subscription?.id ?? payload.data.id;
     const isCancelled    = payload.event === EVENTS.SUBSCRIPTION_CANCELLED;
@@ -292,10 +301,15 @@ export class BillingService {
       return;
     }
 
+    const scheduledDate = new Date();
+    scheduledDate.setDate(scheduledDate.getDate() + 60);
+
     await this.db.subscription.update({
       where: { id: subscription.id },
       data: {
         status: isCancelled ? 'CANCELLED' : 'EXPIRED',
+        dataRetentionChoice: subscription.dataRetentionChoice ?? 'retain_60_days',
+        scheduledDataDeletionAt: subscription.scheduledDataDeletionAt ?? scheduledDate,
         updatedAt: new Date(),
       },
     });
@@ -309,7 +323,7 @@ export class BillingService {
       });
     }
 
-    this.logger.log(`Assinatura ${isCancelled ? 'cancelada' : 'expirada'}: ${subscriptionId}`);
+    this.logger.log(`Assinatura ${isCancelled ? 'cancelada' : 'expirada'}: ${subscriptionId} (dados retidos até ${scheduledDate.toISOString()})`);
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -373,8 +387,214 @@ export class BillingService {
       status: subscription?.status ?? 'NO_SUBSCRIPTION',
       plan: subscription?.plan ?? null,
       currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
+      dataRetentionChoice: subscription?.dataRetentionChoice ?? null,
+      scheduledDataDeletionAt: subscription?.scheduledDataDeletionAt ?? null,
       createdAt: subscription?.createdAt ?? null,
     };
+  }
+
+  /**
+   * Cancelamento de assinatura solicitado pelo próprio assessor na plataforma.
+   * Permite escolher entre excluir dados imediatamente ou mantê-los por 60 dias.
+   */
+  async cancelSubscription(userId: number, deleteDataImmediately: boolean) {
+    const subscription = await this.db.subscription.findUnique({
+      where: { userId },
+      include: { user: true },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('Assinatura não encontrada.');
+    }
+
+    if (subscription.status === 'CANCELLED') {
+      throw new BadRequestException('Esta assinatura já se encontra cancelada.');
+    }
+
+    // 1. Tentar cancelar no gateway da AbacatePay (se ID e chave existirem)
+    if (subscription.abacatepaySubscriptionId && process.env.ABACATEPAY_API_KEY) {
+      try {
+        await axios.post(
+          `https://api.abacatepay.com/v1/subscription/cancel`,
+          { id: subscription.abacatepaySubscriptionId },
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.ABACATEPAY_API_KEY}`,
+            },
+          },
+        );
+        this.logger.log(`Assinatura cancelada na AbacatePay: ${subscription.abacatepaySubscriptionId}`);
+      } catch (err) {
+        this.logger.warn(`Tentativa de cancelamento na AbacatePay: ${(err as Error).message}`);
+      }
+    }
+
+    // 2. Tratar opção de exclusão imediata vs retenção de 60 dias
+    if (deleteDataImmediately) {
+      await this.purgeUserData(userId);
+
+      await this.db.subscription.update({
+        where: { userId },
+        data: {
+          status: 'CANCELLED',
+          dataRetentionChoice: 'immediate_delete',
+          scheduledDataDeletionAt: null,
+          deletionWarningSentAt: null,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (subscription.user.role !== 'admin') {
+        await this.db.user.update({
+          where: { id: userId },
+          data: { role: 'pending' },
+        });
+      }
+
+      await this.notifications.sendCancellationImmediateEmail(
+        subscription.user.email,
+        subscription.user.name,
+      );
+
+      this.logger.log(`Assinatura cancelada com exclusão imediata de dados para usuário ID: ${userId}`);
+      return {
+        message: 'Assinatura cancelada e dados excluídos imediatamente.',
+        dataRetentionChoice: 'immediate_delete',
+      };
+    } else {
+      const scheduledDate = new Date();
+      scheduledDate.setDate(scheduledDate.getDate() + 60);
+
+      await this.db.subscription.update({
+        where: { userId },
+        data: {
+          status: 'CANCELLED',
+          dataRetentionChoice: 'retain_60_days',
+          scheduledDataDeletionAt: scheduledDate,
+          deletionWarningSentAt: null,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (subscription.user.role !== 'admin') {
+        await this.db.user.update({
+          where: { id: userId },
+          data: { role: 'pending' },
+        });
+      }
+
+      await this.notifications.sendCancellationRetainEmail(
+        subscription.user.email,
+        subscription.user.name,
+        scheduledDate,
+      );
+
+      this.logger.log(`Assinatura cancelada com retenção de 60 dias para usuário ID: ${userId} (exclusão agendada para ${scheduledDate.toISOString()})`);
+      return {
+        message: 'Assinatura cancelada com sucesso. Seus dados ficarão preservados por 60 dias.',
+        dataRetentionChoice: 'retain_60_days',
+        scheduledDataDeletionAt: scheduledDate,
+      };
+    }
+  }
+
+  /**
+   * Remove todos os dados operacionais do assessor (clientes, caches e preferências),
+   * mantendo o registro da conta e o histórico financeiro intactos.
+   */
+  async purgeUserData(userId: number): Promise<void> {
+    try {
+      // 1. Deletar cache de clientes associados
+      await this.db.client_cache.deleteMany({
+        where: { owner_id: userId },
+      });
+
+      // 2. Deletar cache do assessor
+      await this.db.user_cache.deleteMany({
+        where: { owner_id: userId },
+      });
+
+      // 3. Deletar clientes cadastrados pelo assessor
+      await this.db.clients.deleteMany({
+        where: { user_id: userId },
+      });
+
+      // 4. Limpar preferências de leitura
+      await this.db.user.update({
+        where: { id: userId },
+        data: { preferences: [] },
+      });
+
+      this.logger.log(`Dados operacionais excluídos para o usuário ID: ${userId}`);
+    } catch (err) {
+      this.logger.error(`Erro ao excluir dados operacionais do usuário ID ${userId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Rotina de limpeza e alerta de retenção de dados:
+   * 1. Envia aviso 7 dias antes do término dos 60 dias.
+   * 2. Exclui dados definitivamente ao atingir os 60 dias.
+   */
+  async checkAndProcessExpiredDataRetention(): Promise<{ warned: number; purged: number }> {
+    const now = new Date();
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+    let warnedCount = 0;
+    let purgedCount = 0;
+
+    const subscriptionsInRetention = await this.db.subscription.findMany({
+      where: {
+        status: 'CANCELLED',
+        scheduledDataDeletionAt: { not: null },
+      },
+      include: { user: true },
+    });
+
+    for (const sub of subscriptionsInRetention) {
+      if (!sub.scheduledDataDeletionAt) continue;
+
+      // Caso 1: Atingiu o prazo de 60 dias -> Exclusão definitiva
+      if (sub.scheduledDataDeletionAt <= now) {
+        await this.purgeUserData(sub.userId);
+
+        await this.db.subscription.update({
+          where: { id: sub.id },
+          data: {
+            scheduledDataDeletionAt: null,
+            updatedAt: new Date(),
+          },
+        });
+
+        await this.notifications.sendDataDeletedEmail(sub.user.email, sub.user.name);
+        this.logger.log(`[RETENÇÃO 60 DIAS] Dados excluídos definitivamente para ${sub.user.email}`);
+        purgedCount++;
+        continue;
+      }
+
+      // Caso 2: 7 dias antes -> Enviar aviso prévio
+      if (!sub.deletionWarningSentAt && sub.scheduledDataDeletionAt <= sevenDaysFromNow) {
+        await this.notifications.sendDataDeletionWarningEmail(
+          sub.user.email,
+          sub.user.name,
+          sub.scheduledDataDeletionAt,
+        );
+
+        await this.db.subscription.update({
+          where: { id: sub.id },
+          data: {
+            deletionWarningSentAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        this.logger.log(`[AVISO 7 DIAS] E-mail de aviso prévio enviado para ${sub.user.email}`);
+        warnedCount++;
+      }
+    }
+
+    return { warned: warnedCount, purged: purgedCount };
   }
 
   /** Listagem administrativa de assinantes */

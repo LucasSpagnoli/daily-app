@@ -33,11 +33,20 @@ export class SubscriptionGuard implements CanActivate {
       where: { userId: user.id },
     });
 
-    if (!subscription || subscription.status !== 'ACTIVE') {
+    // PAST_DUE continua com acesso liberado enquanto a AbacatePay processa as tentativas de cobrança
+    const isAllowed =
+      subscription &&
+      (subscription.status === 'ACTIVE' || subscription.status === 'PAST_DUE');
+
+    if (!isAllowed) {
       throw new HttpException(
         'Sua assinatura está inativa. Regularize seu pagamento para continuar.',
         HttpStatus.PAYMENT_REQUIRED,
       );
+    }
+
+    if (subscription.status === 'PAST_DUE') {
+      request.isPastDue = true;
     }
 
     return true;

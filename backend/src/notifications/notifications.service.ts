@@ -127,6 +127,98 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * E-mail de cancelamento com exclusão imediata de dados.
+   */
+  async sendCancellationImmediateEmail(email: string, name: string): Promise<void> {
+    if (!this.isResendConfigured()) {
+      this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de cancelamento imediato para: ${email}`);
+      return;
+    }
+
+    try {
+      await this.resend!.emails.send({
+        from: `Daily.News <${this.fromEmail}>`,
+        to: email,
+        subject: 'Daily.News — Assinatura cancelada e dados excluídos',
+        html: this.buildCancellationImmediateHtml(name),
+      });
+      this.logger.log(`E-mail de cancelamento imediato enviado para: ${email}`);
+    } catch (err) {
+      this.logger.error(`Falha ao enviar e-mail de cancelamento imediato para ${email}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * E-mail de cancelamento com retenção de dados por 60 dias.
+   */
+  async sendCancellationRetainEmail(email: string, name: string, deletionDate: Date): Promise<void> {
+    if (!this.isResendConfigured()) {
+      this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de cancelamento com retenção para: ${email}`);
+      return;
+    }
+
+    const formattedDate = deletionDate.toLocaleDateString('pt-BR');
+
+    try {
+      await this.resend!.emails.send({
+        from: `Daily.News <${this.fromEmail}>`,
+        to: email,
+        subject: 'Daily.News — Assinatura cancelada (seus dados serão guardados por 60 dias)',
+        html: this.buildCancellationRetainHtml(name, formattedDate),
+      });
+      this.logger.log(`E-mail de cancelamento com retenção enviado para: ${email}`);
+    } catch (err) {
+      this.logger.error(`Falha ao enviar e-mail de cancelamento com retenção para ${email}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * E-mail de aviso prévio (7 dias antes da exclusão definitiva dos dados).
+   */
+  async sendDataDeletionWarningEmail(email: string, name: string, deletionDate: Date): Promise<void> {
+    if (!this.isResendConfigured()) {
+      this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de aviso prévio de exclusão para: ${email}`);
+      return;
+    }
+
+    const formattedDate = deletionDate.toLocaleDateString('pt-BR');
+
+    try {
+      await this.resend!.emails.send({
+        from: `Daily.News <${this.fromEmail}>`,
+        to: email,
+        subject: 'Daily.News — Aviso: Seus dados serão excluídos em 7 dias',
+        html: this.buildDataDeletionWarningHtml(name, formattedDate),
+      });
+      this.logger.log(`E-mail de aviso de exclusão enviado para: ${email}`);
+    } catch (err) {
+      this.logger.error(`Falha ao enviar e-mail de aviso de exclusão para ${email}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * E-mail de confirmação de exclusão definitiva após 60 dias.
+   */
+  async sendDataDeletedEmail(email: string, name: string): Promise<void> {
+    if (!this.isResendConfigured()) {
+      this.logger.warn(`[DEV SIMULATION] RESEND_API_KEY não configurada. E-mail de dados excluídos para: ${email}`);
+      return;
+    }
+
+    try {
+      await this.resend!.emails.send({
+        from: `Daily.News <${this.fromEmail}>`,
+        to: email,
+        subject: 'Daily.News — Seus dados foram excluídos com segurança',
+        html: this.buildDataDeletedHtml(name),
+      });
+      this.logger.log(`E-mail de dados excluídos enviado para: ${email}`);
+    } catch (err) {
+      this.logger.error(`Falha ao enviar e-mail de dados excluídos para ${email}: ${(err as Error).message}`);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────
   // Templates HTML — paleta Daily.News (preto/dourado, tipografia serifada)
   // ────────────────────────────────────────────────────────────
@@ -247,6 +339,79 @@ export class NotificationsService {
       </a>
       <p style="margin:32px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#999999;">
         Se você não fez esta solicitação, ignore este e-mail com segurança.
+      </p>
+    `);
+  }
+
+  private buildCancellationImmediateHtml(name: string): string {
+    const safeName = this.escapeHtml(name);
+    return this.baseLayout(`
+      <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Cancelamento de Assinatura</p>
+      <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
+        Assinatura cancelada, ${safeName}.
+      </h1>
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Confirmamos o cancelamento da sua assinatura Daily.News. Conforme sua escolha, seus dados de clientes cadastrados, histórico e preferências foram <strong>excluídos imediatamente</strong> de nossos servidores.
+      </p>
+      <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Agradecemos pelo tempo em que esteve conosco. Se desejar retornar no futuro, as portas da Daily.News estarão sempre abertas.
+      </p>
+    `);
+  }
+
+  private buildCancellationRetainHtml(name: string, formattedDate: string): string {
+    const safeName = this.escapeHtml(name);
+    return this.baseLayout(`
+      <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Cancelamento de Assinatura</p>
+      <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
+        Assinatura cancelada, ${safeName}.
+      </h1>
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Confirmamos o cancelamento da sua assinatura Daily.News. Novas cobranças automáticas foram interrompidas.
+      </p>
+      <div style="background-color:#faf8f5;border-left:3px solid #D4AF37;padding:16px 20px;margin:24px 0;">
+        <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;color:#333333;line-height:1.6;">
+          <strong>Seus dados estão preservados por 60 dias</strong> — até <strong>${formattedDate}</strong>.
+          Se você optar por reativar sua assinatura antes dessa data, todos os seus clientes e configurações estarão prontos para uso.
+        </p>
+      </div>
+      <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Enviaremos um aviso por e-mail 7 dias antes da exclusão definitiva dos seus dados.
+      </p>
+    `);
+  }
+
+  private buildDataDeletionWarningHtml(name: string, formattedDate: string): string {
+    const safeName = this.escapeHtml(name);
+    return this.baseLayout(`
+      <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#D4AF37;text-transform:uppercase;letter-spacing:0.25em;">Aviso Importante</p>
+      <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
+        Seus dados serão excluídos em 7 dias, ${safeName}.
+      </h1>
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        O período de retenção de 60 dias da sua assinatura cancelada está chegando ao fim. No dia <strong>${formattedDate}</strong>, seus clientes cadastrados, histórico e preferências serão permanentemente excluídos.
+      </p>
+      <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Se quiser manter sua base de clientes e continuar utilizando a Daily.News, reative sua assinatura antes dessa data.
+      </p>
+      <a href="${this.frontendUrl}" style="display:inline-block;background-color:#000000;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.2em;padding:14px 32px;">
+        Reativar minha assinatura
+      </a>
+    `);
+  }
+
+  private buildDataDeletedHtml(name: string): string {
+    const safeName = this.escapeHtml(name);
+    return this.baseLayout(`
+      <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.25em;">Privacidade & Dados</p>
+      <h1 style="margin:0 0 24px;font-family:Georgia,serif;font-size:28px;font-weight:300;color:#000000;line-height:1.3;">
+        Dados excluídos com segurança, ${safeName}.
+      </h1>
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Informamos que o prazo de 60 dias da sua assinatura cancelada foi concluído e, conforme nossa política de privacidade, seus dados de clientes e preferências foram permanentemente removidos dos nossos servidores.
+      </p>
+      <p style="margin:0 0 32px;font-family:Arial,sans-serif;font-size:14px;color:#555555;line-height:1.7;">
+        Caso decida voltar no futuro, ficaremos muito felizes em recebê-lo novamente para um novo início na Daily.News.
       </p>
     `);
   }
