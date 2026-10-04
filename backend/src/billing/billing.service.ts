@@ -77,7 +77,6 @@ export class BillingService {
     signature: string,
   ): Promise<void> {
     // 1. Validar webhook secret na query/header
-    this.logger.debug(`Payload completo recebido: ${JSON.stringify(body, null, 2)}`); // 👈 temporário
     this.validateWebhookSecret(webhookSecret);
 
     // 2. Validar assinatura HMAC (se disponível)
