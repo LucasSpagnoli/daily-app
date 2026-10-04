@@ -32,9 +32,11 @@ function App() {
                 <Route path='/clients' element={<ClientPage />} />
               </Route>
 
-              <Route path='/pagamento-confirmado' element={<ConfirmPayment />} />
+
 
             </Route>
+
+            <Route path='/pagamento-confirmado' element={<ConfirmPayment />} />
           </Routes>
         </AuthProvider>
       </ToastProvider>

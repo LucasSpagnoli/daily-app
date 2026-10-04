@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import express, { type Request, type Response } from 'express';
+import express, { json, type Request, type Response } from 'express';
 import cors from 'cors';
 
 const expressApp = express();
@@ -39,7 +39,7 @@ let cachedApp: express.Express | undefined;
 
 async function bootstrap() {
   if (!cachedApp) {
-    const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
+    const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp), { bodyParser: false });
     await app.init();
     cachedApp = expressApp;
   }

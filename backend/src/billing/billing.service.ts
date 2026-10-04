@@ -15,32 +15,44 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 // Tipos do payload AbacatePay (ajuste os nomes de evento conforme sua conta)
 // ──────────────────────────────────────────────────────────────
 interface AbacatepayWebhookPayload {
-  event: string;          // ex: 'subscription.completed', 'subscription.renewed', ...
+  id: string;              // 👈 ID do evento fica aqui agora
+  event: string;
+  apiVersion?: number;
   devMode?: boolean;
   data: {
-    id: string;                  // ID da cobrança/assinatura
+    subscription?: {
+      id?: string;
+      status?: string;       // ACTIVE, etc.
+      frequency?: string;    // MONTHLY
+      amount?: number;
+      createdAt?: string;
+      updatedAt?: string;
+      canceledAt?: string | null;
+    };
     customer?: {
       id?: string;
       name?: string;
       email?: string;
     };
-    subscription?: {
+    checkout?: {
       id?: string;
-      currentPeriodEnd?: string; // ISO 8601
+      externalId?: string | null;
+      status?: string;
     };
-    externalId?: string;         // userId que passamos na criação do checkout
-    metadata?: Record<string, string>;
-    status?: string;
+    payment?: {
+      id?: string;
+      status?: string;
+    };
   };
 }
 
 // Eventos esperados — ajuste os strings exatos depois de testar no Dev Mode
 const EVENTS = {
   SUBSCRIPTION_FIRST_PAYMENT: 'subscription.completed',   // primeiro ciclo pago → ativa
-  SUBSCRIPTION_RENEWED:       'subscription.renewed',     // renovação paga
-  SUBSCRIPTION_PAYMENT_FAILED:'subscription.payment_failed',
-  SUBSCRIPTION_CANCELLED:     'subscription.cancelled',
-  SUBSCRIPTION_EXPIRED:       'subscription.expired',
+  SUBSCRIPTION_RENEWED: 'subscription.renewed',     // renovação paga
+  SUBSCRIPTION_PAYMENT_FAILED: 'subscription.payment_failed',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+  SUBSCRIPTION_EXPIRED: 'subscription.expired',
 } as const;
 
 const SETUP_TOKEN_TTL_HOURS = 48;
@@ -52,7 +64,7 @@ export class BillingService {
   constructor(
     private readonly db: DatabaseService,
     private readonly notifications: NotificationsService,
-  ) {}
+  ) { }
 
   // ────────────────────────────────────────────────────────────
   // Entry point chamado pelo controller
@@ -65,6 +77,7 @@ export class BillingService {
     signature: string,
   ): Promise<void> {
     // 1. Validar webhook secret na query/header
+    this.logger.debug(`Payload completo recebido: ${JSON.stringify(body, null, 2)}`); // 👈 temporário
     this.validateWebhookSecret(webhookSecret);
 
     // 2. Validar assinatura HMAC (se disponível)
@@ -79,7 +92,7 @@ export class BillingService {
     }
 
     // 4. Idempotência — verificar se o evento já foi processado
-    const eventId = body.data?.id;
+    const eventId = body.id;
     if (!eventId) {
       this.logger.warn('Webhook sem data.id — ignorando.');
       return;
@@ -127,6 +140,18 @@ export class BillingService {
   // Handlers por evento
   // ────────────────────────────────────────────────────────────
 
+  /** Calcula a data de fim do período atual, já que a AbacatePay não envia isso direto */
+  private calculatePeriodEnd(createdAt: string, frequency?: string): Date {
+    const date = new Date(createdAt);
+    if (frequency === 'ANNUAL') {
+      date.setFullYear(date.getFullYear() + 1);
+    } else {
+      // padrão: MONTHLY (e fallback pra qualquer frequência não mapeada)
+      date.setMonth(date.getMonth() + 1);
+    }
+    return date;
+  }
+
   /** Primeira cobrança paga → criar/ativar usuário + enviar e-mail de boas-vindas */
   private async handleFirstPayment(payload: AbacatepayWebhookPayload): Promise<void> {
     const email = payload.data.customer?.email;
@@ -137,11 +162,18 @@ export class BillingService {
       return;
     }
 
-    const subscriptionId    = payload.data.subscription?.id ?? payload.data.id;
-    const customerId        = payload.data.customer?.id;
-    const currentPeriodEnd  = payload.data.subscription?.currentPeriodEnd
-      ? new Date(payload.data.subscription.currentPeriodEnd)
+    const subscriptionId = payload.data.subscription?.id;
+    const customerId     = payload.data.customer?.id;
+    const createdAt      = payload.data.subscription?.createdAt;
+    const frequency      = payload.data.subscription?.frequency;
+    const currentPeriodEnd = createdAt
+      ? this.calculatePeriodEnd(createdAt, frequency)
       : null;
+
+    if (!subscriptionId) {
+      this.logger.error('Evento de primeiro pagamento sem subscription.id.');
+      return;
+    }
 
     // Verificar se usuário já existe (reativação)
     const existingUser = await this.db.user.findUnique({ where: { email } });
@@ -172,7 +204,6 @@ export class BillingService {
         },
       });
 
-      // Garante role ativo (preserva admin)
       if (existingUser.role !== 'admin') {
         await this.db.user.update({
           where: { id: existingUser.id },
@@ -196,7 +227,6 @@ export class BillingService {
       },
     });
 
-    // Criar registro de assinatura
     await this.db.subscription.create({
       data: {
         userId: newUser.id,
@@ -207,41 +237,33 @@ export class BillingService {
       },
     });
 
-    // Gerar token de definição de senha
     const setupToken = await this.generatePasswordSetupToken(newUser.id);
-
-    // Enviar e-mail de boas-vindas com link de definição de senha
     await this.notifications.sendWelcomeEmail(newUser.email, newUser.name, setupToken);
 
     this.logger.log(`Novo usuário criado e e-mail enviado: ${email}`);
   }
 
+
   /** Renovação mensal paga → atualizar período */
   private async handleRenewal(payload: AbacatepayWebhookPayload): Promise<void> {
-    const customerId       = payload.data.customer?.id;
-    const subscriptionId   = payload.data.subscription?.id ?? payload.data.id;
-    const currentPeriodEnd = payload.data.subscription?.currentPeriodEnd
-      ? new Date(payload.data.subscription.currentPeriodEnd)
+    const customerId     = payload.data.customer?.id;
+    const subscriptionId = payload.data.subscription?.id;
+    const createdAt      = payload.data.subscription?.createdAt;
+    const frequency      = payload.data.subscription?.frequency;
+    const currentPeriodEnd = createdAt
+      ? this.calculatePeriodEnd(createdAt, frequency)
       : null;
 
     const orConditions: Array<{ abacatepaySubscriptionId?: string; abacatepayCustomerId?: string }> = [];
-    if (subscriptionId) {
-      orConditions.push({ abacatepaySubscriptionId: subscriptionId });
-    }
-    if (customerId) {
-      orConditions.push({ abacatepayCustomerId: customerId });
-    }
+    if (subscriptionId) orConditions.push({ abacatepaySubscriptionId: subscriptionId });
+    if (customerId) orConditions.push({ abacatepayCustomerId: customerId });
 
     if (orConditions.length === 0) {
       this.logger.warn('Renovação: nenhum identificador de assinatura fornecido.');
       return;
     }
 
-    const subscription = await this.db.subscription.findFirst({
-      where: {
-        OR: orConditions,
-      },
-    });
+    const subscription = await this.db.subscription.findFirst({ where: { OR: orConditions } });
 
     if (!subscription) {
       this.logger.warn(`Renovação: assinatura não encontrada para ID: ${subscriptionId}`);
@@ -260,9 +282,10 @@ export class BillingService {
     this.logger.log(`Assinatura renovada: ${subscriptionId}`);
   }
 
+
   /** Falha de pagamento → marcar PAST_DUE e notificar assessor */
   private async handlePaymentFailed(payload: AbacatepayWebhookPayload): Promise<void> {
-    const subscriptionId = payload.data.subscription?.id ?? payload.data.id;
+    const subscriptionId = payload.data.subscription?.id;
 
     const subscription = await this.db.subscription.findFirst({
       where: { abacatepaySubscriptionId: subscriptionId },
@@ -279,17 +302,14 @@ export class BillingService {
       data: { status: 'PAST_DUE', updatedAt: new Date() },
     });
 
-    await this.notifications.sendPaymentFailedEmail(
-      subscription.user.email,
-      subscription.user.name,
-    );
+    await this.notifications.sendPaymentFailedEmail(subscription.user.email, subscription.user.name);
 
     this.logger.log(`Assinatura marcada como PAST_DUE: ${subscriptionId}`);
   }
 
   /** Cancelamento ou expiração via webhook → suspender acesso com retenção padrão de 60 dias */
   private async handleCancellation(payload: AbacatepayWebhookPayload): Promise<void> {
-    const subscriptionId = payload.data.subscription?.id ?? payload.data.id;
+    const subscriptionId = payload.data.subscription?.id;
     const isCancelled    = payload.event === EVENTS.SUBSCRIPTION_CANCELLED;
 
     const subscription = await this.db.subscription.findFirst({
@@ -314,7 +334,6 @@ export class BillingService {
       },
     });
 
-    // Rebaixar role para 'pending' para bloquear acesso via SubscriptionGuard (se não for admin)
     const user = await this.db.user.findUnique({ where: { id: subscription.userId } });
     if (user && user.role !== 'admin') {
       await this.db.user.update({
@@ -339,22 +358,21 @@ export class BillingService {
   }
 
   private validateHmacSignature(rawBody: string, signature: string): void {
-    const secret = process.env.ABACATEPAY_WEBHOOK_SECRET!;
+    const secret = process.env.ABACATEPAY_PUBLIC_SECRET!;
     const expected = crypto
       .createHmac('sha256', secret)
       .update(rawBody)
-      .digest('hex');
+      .digest('base64');
 
-    try {
-      const sigBuffer = Buffer.from(signature);
-      const expBuffer = Buffer.from(expected);
-      if (
-        sigBuffer.length !== expBuffer.length ||
-        !crypto.timingSafeEqual(sigBuffer, expBuffer)
-      ) {
-        throw new ForbiddenException('Assinatura HMAC inválida.');
-      }
-    } catch {
+    const sigBuffer = Buffer.from(signature);
+    const expBuffer = Buffer.from(expected);
+
+    const isValid =
+      sigBuffer.length === expBuffer.length &&
+      crypto.timingSafeEqual(sigBuffer, expBuffer);
+
+    if (!isValid) {
+      this.logger.warn(`HMAC inválido. Recebido: ${signature} | Esperado: ${expected}`);
       throw new ForbiddenException('Assinatura HMAC inválida.');
     }
   }
