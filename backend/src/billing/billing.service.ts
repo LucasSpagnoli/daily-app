@@ -650,4 +650,64 @@ export class BillingService {
 
     return updated;
   }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Checkout — cria a assinatura e devolve a URL de pagamento
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Cria um checkout de assinatura na AbacatePay e retorna a URL de pagamento.
+   * Chamado pela rota pública POST /billing/checkout (botão "Assinar" da landing page).
+   * A própria tela de pagamento da AbacatePay coleta nome/e-mail do assessor.
+   */
+  async createSubscriptionCheckout(): Promise<string> {
+    const apiKey = process.env.ABACATEPAY_API_KEY;
+    const productId = process.env.ABACATEPAY_PRODUCT_ID;
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://daily-news-challenge.vercel.app';
+
+    if (!apiKey) {
+      this.logger.error('ABACATEPAY_API_KEY não configurada.');
+      throw new Error('Configuração de chave de API ausente.');
+    }
+
+    if (!productId) {
+      this.logger.error('ABACATEPAY_PRODUCT_ID não configurado.');
+      throw new Error('Configuração de produto ausente.');
+    }
+
+    try {
+      const { data: response } = await axios.post(
+        'https://api.abacatepay.com/v2/subscriptions/create',
+        {
+          items: [{ id: productId, quantity: 1 }],
+          returnUrl: `${frontendUrl}/voltar`,
+          completionUrl: `${frontendUrl}/pagamento-confirmado`,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const checkoutUrl: string = response?.data?.url;
+      if (!checkoutUrl) {
+        this.logger.error(`Resposta da AbacatePay sem URL: ${JSON.stringify(response)}`);
+        throw new Error('AbacatePay não retornou uma URL de checkout válida.');
+      }
+
+      this.logger.log(`Checkout de assinatura criado: ${checkoutUrl}`);
+      return checkoutUrl;
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        this.logger.error(
+          `Falha ao criar checkout na AbacatePay: ${err.response?.status} | ${JSON.stringify(err.response?.data)}`,
+        );
+      } else {
+        this.logger.error(`Erro inesperado ao criar checkout: ${(err as Error).message}`);
+      }
+      throw err;
+    }
+  }
 }

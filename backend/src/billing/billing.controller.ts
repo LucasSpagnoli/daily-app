@@ -13,6 +13,7 @@ import {
   ParseIntPipe,
   ValidationPipe,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { BillingService } from './billing.service';
@@ -27,6 +28,25 @@ export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
   constructor(private readonly billingService: BillingService) {}
+
+  /**
+   * POST /billing/checkout
+   * Rota 100% pública — sem @UseGuards, sem nenhuma autenticação.
+   * Chamada pelo botão "Assinar" da landing page, antes de qualquer conta existir.
+   * Cria a assinatura na AbacatePay e devolve a URL de pagamento para o frontend redirecionar.
+   */
+  @Post('checkout')
+  async createCheckout() {
+    try {
+      const url = await this.billingService.createSubscriptionCheckout();
+      return { url };
+    } catch (err) {
+      this.logger.error(`Erro ao criar checkout: ${(err as Error).message}`);
+      throw new InternalServerErrorException(
+        'Não foi possível iniciar o pagamento. Tente novamente em alguns instantes.',
+      );
+    }
+  }
 
   /**
    * POST /billing/webhook/abacatepay
